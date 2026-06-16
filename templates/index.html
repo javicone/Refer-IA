@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ReferIA — En Directo</title>
+  <style>
+    :root {
+      --bg:        #0b1120;
+      --surface:   #111827;
+      --surface-2: #1f2937;
+      --border:    rgba(255,255,255,0.07);
+      --ink:       #e8edf4;
+      --muted:     #6b7a8d;
+      --a:         #3b82f6;
+      --a-dim:     rgba(59,130,246,0.15);
+      --a-border:  rgba(59,130,246,0.3);
+      --b:         #ef4444;
+      --b-dim:     rgba(239,68,68,0.15);
+      --b-border:  rgba(239,68,68,0.3);
+      --global-dim:    rgba(250,204,21,0.12);
+      --global-border: rgba(250,204,21,0.3);
+      --global-ink:    #fde047;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, "Segoe UI", system-ui, sans-serif;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+
+    /* ── CABECERA / MARCADOR ───────────────────────────── */
+    header {
+      background: linear-gradient(160deg, #0d1f2d 0%, #0b1120 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px 18px;
+    }
+
+    .scoreboard {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 16px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .team-name {
+      font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .team-name.home { text-align: right; color: #93c5fd; }
+    .team-name.away { text-align: left;  color: #fca5a5; }
+
+    .score-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .score {
+      font-size: clamp(2.4rem, 5vw, 4rem);
+      font-weight: 900;
+      letter-spacing: -0.06em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .clock-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 14px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      background: rgba(34,197,94,0.15);
+      border: 1px solid rgba(34,197,94,0.35);
+      color: #4ade80;
+      transition: all 0.3s;
+    }
+    .clock-badge.finished {
+      background: rgba(239,68,68,0.15);
+      border-color: rgba(239,68,68,0.35);
+      color: #f87171;
+    }
+
+    .pulse-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #4ade80;
+      flex-shrink: 0;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    .clock-badge.finished .pulse-dot { display: none; }
+    @keyframes blink {
+      0%,100% { opacity:1; }
+      50% { opacity:0.25; }
+    }
+
+    /* ── LAYOUT PRINCIPAL (3 columnas) ─────────────────── */
+    main {
+      display: grid;
+      grid-template-columns: 220px 1fr 220px;
+      overflow: hidden;
+      height: calc(100dvh - 97px);
+    }
+
+    /* ── PANELES DE EQUIPO ──────────────────────────────── */
+    .team-panel {
+      background: var(--surface);
+      overflow-y: auto;
+      padding: 20px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .team-panel.home { border-right: 1px solid var(--border); }
+    .team-panel.away { border-left:  1px solid var(--border); }
+
+    .panel-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .player-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+
+    .player-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: var(--ink);
+      transition: background 100ms;
+    }
+    .player-item:hover { background: var(--surface-2); }
+
+    .player-num {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+      width: 18px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .no-players {
+      color: var(--muted);
+      font-size: 0.82rem;
+      padding: 12px 4px;
+      line-height: 1.5;
+    }
+
+    /* Marcador por jugador (goles/tarjetas en lineup) */
+    .player-badge {
+      margin-left: auto;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    /* ── PANEL DE EVENTOS ───────────────────────────────── */
+    .events-panel {
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      scroll-behavior: smooth;
+    }
+
+    .events-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      font-size: 0.9rem;
+      gap: 8px;
+    }
+    .events-placeholder span { font-size: 2rem; }
+
+    /* Fila de evento */
+    .event-row {
+      display: grid;
+      grid-template-columns: 1fr 56px 1fr;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      animation: fadeSlide 300ms ease;
+    }
+    .event-row:last-child { border-bottom: none; }
+    @keyframes fadeSlide {
+      from { opacity:0; transform:translateY(-6px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    /* Lado A (derecha → hacia el centro) */
+    .side-a { text-align: right; }
+    /* Lado B (izquierda ← hacia el centro) */
+    .side-b { text-align: left; }
+
+    /* Chip de evento */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.3;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chip.a    { background: var(--a-dim);      border: 1px solid var(--a-border);      color: #93c5fd; }
+    .chip.b    { background: var(--b-dim);      border: 1px solid var(--b-border);      color: #fca5a5; }
+    .chip.glob { background: var(--global-dim); border: 1px solid var(--global-border); color: var(--global-ink); }
+
+    /* Columna central del evento */
+    .event-mid {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .event-icon {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.95rem;
+      flex-shrink: 0;
+    }
+    .event-min {
+      font-size: 0.65rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Scrollbar sutil */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="scoreboard">
+    <div class="team-name home" id="nameA">Local</div>
+    <div class="score-center">
+      <div class="score" id="scoreEl">0 – 0</div>
+      <div class="clock-badge" id="clockBadge">
+        <span class="pulse-dot" id="pulseDot"></span>
+        <span id="clockEl">00:00</span>
+      </div>
+    </div>
+    <div class="team-name away" id="nameB">Visitante</div>
+  </div>
+</header>
+
+<main>
+  <!-- Equipo A -->
+  <aside class="team-panel home">
+    <div class="panel-label">Alineación local</div>
+    <ul class="player-list" id="lineupA">
+      <li class="no-players">Sin alineación registrada</li>
+    </ul>
+  </aside>
+
+  <!-- Eventos -->
+  <section class="events-panel" id="eventsPanel">
+    <div class="events-placeholder" id="placeholder">
+      <span>⏳</span>
+      Esperando el inicio del partido…
+    </div>
+  </section>
+
+
+  <!-- Equipo B -->
+  <aside class="team-panel away">
+    <div class="panel-label">Alineación visitante</div>
+    <ul class="player-list" id="lineupB">
+      <li class="no-players">Sin alineación registrada</li>
+    </ul>
+  </aside>
+</main>
+
+<script>
+  const ID_PARTIDO = "demo";
+
+  // ── DOM ─────────────────────────────────────────────
+  const nameAEl    = document.getElementById("nameA");
+  const nameBEl    = document.getElementById("nameB");
+  const scoreEl    = document.getElementById("scoreEl");
+  const clockEl    = document.getElementById("clockEl");
+  const clockBadge = document.getElementById("clockBadge");
+  const lineupAEl  = document.getElementById("lineupA");
+  const lineupBEl  = document.getElementById("lineupB");
+  const eventsPanel = document.getElementById("eventsPanel");
+  const placeholder = document.getElementById("placeholder");
+
+  // ── RELOJ ───────────────────────────────────────────
+  // clockWallStart: Date.now() en el momento en que el reloj se inició o rebaseó.
+  // clockBaseMin:   minuto del partido en ese momento.
+  // El intervalo solo se crea una vez; avanzar la base no lo reinicia.
+  let clockTimer     = null;
+  let clockWallStart = null;
+  let clockBaseMin   = 0;
+
+  function formatClock(totalSeconds) {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  function _tick() {
+    const elapsed = clockWallStart ? Math.floor((Date.now() - clockWallStart) / 1000) : 0;
+    clockEl.textContent = formatClock(clockBaseMin * 60 + elapsed);
+  }
+
+  function startClock(fromMinute) {
+    clockBaseMin   = fromMinute || 0;
+    clockWallStart = Date.now();
+    clockBadge.classList.remove("finished");
+    document.getElementById("pulseDot").style.display = "";
+    _tick();
+    if (clockTimer === null) {
+      clockTimer = setInterval(_tick, 1000);
+    }
+  }
+
+  function advanceClock(newMin) {
+    if (newMin > clockBaseMin) {
+      clockBaseMin   = newMin;
+      clockWallStart = Date.now();
+    }
+  }
+
+  function stopClock() {
+    clearInterval(clockTimer);
+    clockTimer = null;
+    clockBadge.classList.add("finished");
+    document.getElementById("pulseDot").style.display = "none";
+    clockEl.textContent = "Final";
+  }
+
+  // ── ICONOS / ETIQUETAS ──────────────────────────────
+  const ICONS = {
+    gol:           "⚽",
+    asistencia:    "🅰️",
+    falta_normal:  "⚠️",
+    falta_amarilla:"🟨",
+    falta_roja:    "🟥",
+    cambio:        "🔄",
+    tiempo_anadido:"⏱️",
+    fin_partido:   "🏁",
+  };
+
+  function icon(tipo, datos) {
+    if (tipo === "falta") return ICONS["falta_" + (datos.tipo || "normal")];
+    return ICONS[tipo] || "📋";
+  }
+
+  function label(tipo, datos) {
+    switch (tipo) {
+      case "gol":
+        return "Gol" + (datos.jugador ? " · " + datos.jugador : "");
+      case "asistencia":
+        return "Asist." + (datos.jugador ? " " + datos.jugador : "");
+      case "falta":
+        return datos.tipo === "amarilla" ? "T. Amarilla"
+             : datos.tipo === "roja"     ? "T. Roja"
+             : "Falta" + (datos.jugador ? " · " + datos.jugador : "");
+      case "cambio":
+        return (datos.sale || "?") + " → " + (datos.entra || "?");
+      case "tiempo_anadido":
+        return "+" + datos.minutos + " min";
+      case "fin_partido":
+        return "Final del partido";
+      default:
+        return tipo;
+    }
+  }
+
+  // ── RENDERIZADO ─────────────────────────────────────
+
+  function renderLineup(el, players) {
+    if (!players || players.length === 0) {
+      el.innerHTML = '<li class="no-players">Sin alineación registrada</li>';
+      return;
+    }
+    el.innerHTML = players.map((p, i) =>
+      `<li class="player-item">
+        <span class="player-num">${i + 1}</span>
+        <span>${p}</span>
+      </li>`
+    ).join("");
+  }
+
+  function renderEvents(eventos) {
+    // Eliminar filas existentes
+    eventsPanel.querySelectorAll(".event-row").forEach(r => r.remove());
+
+    if (!eventos || eventos.length === 0) {
+      placeholder.style.display = "";
+      return;
+    }
+    placeholder.style.display = "none";
+
+    // Calcular marcador y último minuto desde los eventos
+    let golesA = 0, golesB = 0, lastMin = 0, ended = false;
+    for (const ev of eventos) {
+      const d = ev.datos;
+      if (ev.tipo === "gol") {
+        if (d.equipo === "A") golesA++; else golesB++;
+      }
+      if (d.minuto)  lastMin = Math.max(lastMin, d.minuto);
+      if (d.minutos) lastMin = Math.max(lastMin, d.minutos);
+      if (ev.tipo === "fin_partido") ended = true;
+    }
+
+    scoreEl.textContent = golesA + " – " + golesB;
+
+    if (ended) {
+      stopClock();
+    } else if (clockTimer === null) {
+      startClock(lastMin);   // primera carga: arranca el reloj
+    } else {
+      advanceClock(lastMin); // evento nuevo: avanza la base sin reiniciar
+    }
+
+    // Renderizar: newest primero (reversed)
+    const rows = [...eventos].reverse().map(ev => {
+      const d = ev.datos;
+      const equipo  = d.equipo;            // "A", "B" o undefined
+      const ico     = icon(ev.tipo, d);
+      const lbl     = label(ev.tipo, d);
+      const min     = d.minuto != null ? d.minuto + "'" : (d.minutos != null ? "+" + d.minutos + "'" : "");
+      const isGlobal = !equipo;
+
+      let sideA = "", sideB = "";
+      let globalChip = "";
+
+      if (equipo === "A") {
+        sideA = `<span class="chip a">${ico} ${lbl}</span>`;
+      } else if (equipo === "B") {
+        sideB = `<span class="chip b">${ico} ${lbl}</span>`;
+      } else {
+        // evento sin equipo → chip global centrado (lo ponemos en sideA ocupando el ancho)
+        globalChip = `<span class="chip glob">${ico} ${lbl}</span>`;
+      }
+
+      return `<div class="event-row">
+        <div class="side-a">${isGlobal ? globalChip : sideA}</div>
+        <div class="event-mid">
+          <div class="event-icon">${ico}</div>
+          ${min ? `<div class="event-min">${min}</div>` : ""}
+        </div>
+        <div class="side-b">${sideB}</div>
+      </div>`;
+    });
+
+    eventsPanel.insertAdjacentHTML("afterbegin", rows.join(""));
+  }
+
+  // ── CARGA INICIAL ───────────────────────────────────
+
+  async function loadPartido() {
+    try {
+      const r = await fetch(`/api/partido/${ID_PARTIDO}`);
+      if (!r.ok) return;
+      const d = await r.json();
+      nameAEl.textContent = d.equipos?.A || "Local";
+      nameBEl.textContent = d.equipos?.B || "Visitante";
+      renderLineup(lineupAEl, d.jugadores?.A);
+      renderLineup(lineupBEl, d.jugadores?.B);
+    } catch (_) {}
+  }
+
+  async function loadEventos() {
+    try {
+      const r = await fetch(`/api/eventos/${ID_PARTIDO}`);
+      const d = await r.json();
+      renderEvents(d.eventos);
+    } catch (_) {}
+  }
+
+  // ── WEBSOCKET ────────────────────────────────────────
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.tipo === "confirmado" && !msg.duplicado) {
+      loadEventos();
+    }
+  };
+
+  ws.onclose = () => {
+    setTimeout(() => location.reload(), 3000);
+  };
+
+  // ── INIT ─────────────────────────────────────────────
+  loadPartido();
+  loadEventos();
+  startClock(0);  // reloj arranca al cargar la página
+</script>
+</body>
+</html>

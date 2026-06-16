@@ -1,0 +1,18 @@
+[project]
+name = "referia"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.0",
+    "openai>=1.50.0",
+    "python-dotenv>=1.2.2",
+    "python-multipart>=0.0.9",
+    "uvicorn[standard]>=0.30.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+]

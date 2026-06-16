@@ -1,0 +1,41 @@
+# Control de versiones / metadatos
+.git
+.gitignore
+*.md
+arquitectura*.md
+
+# Entornos y caches
+.venv
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Tooling de dependencias (la imagen instala desde el Dockerfile)
+uv.lock
+.python-version
+
+# Tests y datos locales
+tests
+*.db
+*.sqlite
+*.sqlite3
+*.wav
+*.mp3
+
+# Secretos / configuración local
+.env
+.env.*
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db

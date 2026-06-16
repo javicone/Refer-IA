@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ReferIA</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f5f2ea;
+            --panel: #fffaf2;
+            --ink: #17212b;
+            --muted: #5d6974;
+            --accent: #0f766e;
+            --accent-2: #115e59;
+            --border: rgba(23, 33, 43, 0.12);
+            --shadow: 0 18px 50px rgba(23, 33, 43, 0.12);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Inter, "Segoe UI", system-ui, sans-serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(245, 158, 11, 0.16), transparent 30%),
+                var(--bg);
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+
+        .card {
+            width: min(720px, 100%);
+            background: rgba(255, 250, 242, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            box-shadow: var(--shadow);
+            padding: 32px;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: clamp(2rem, 4vw, 3rem);
+            letter-spacing: -0.04em;
+        }
+
+        p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            appearance: none;
+            border: 0;
+            border-radius: 999px;
+            padding: 14px 22px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: white;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            cursor: pointer;
+            transition: transform 120ms ease, opacity 120ms ease;
+            box-shadow: 0 12px 24px rgba(15, 118, 110, 0.24);
+        }
+
+        button:hover { transform: translateY(-1px); }
+        button:disabled { opacity: 0.6; cursor: wait; }
+
+        .state {
+            font-size: 0.95rem;
+            color: var(--muted);
+        }
+
+        .result {
+            margin-top: 24px;
+            padding: 18px;
+            min-height: 120px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.7);
+            white-space: pre-wrap;
+            line-height: 1.65;
+        }
+
+        .result strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <h1>ReferIA</h1>
+        <p>Pulsa <strong>Enviar comando</strong> para empezar a grabar. Pulsa de nuevo en <strong>Parar</strong> para subir el audio y ver la transcripción.</p>
+
+        <div class="controls">
+            <button id="record">Enviar comando</button>
+            <span id="state" class="state"></span>
+        </div>
+
+        <div id="result" class="result" hidden>
+            <strong>Transcripción:</strong>
+            <span id="text"></span>
+        </div>
+
+        <div id="feed" class="result" style="margin-top:16px;">
+            <strong>Propuestas y notificaciones (HITL):</strong>
+            <div id="feedItems"></div>
+        </div>
+    </main>
+
+    <script>
+        const ID_PARTIDO = "demo";
+        const recordBtn = document.getElementById("record");
+        const stateEl = document.getElementById("state");
+        const resultEl = document.getElementById("result");
+        const textEl = document.getElementById("text");
+        const feedItems = document.getElementById("feedItems");
+
+        // --- WebSocket: recibe propuestas/notificaciones, envía confirmaciones ---
+        const ws = new WebSocket(`ws://${location.host}/ws`);
+        ws.onmessage = (ev) => {
+            const msg = JSON.parse(ev.data);
+            if (msg.tipo === "propuesta") {
+                renderPropuesta(msg);
+            } else {
+                logNotificacion(msg);
+            }
+        };
+
+        function decide(confirmationId, accion, card) {
+            ws.send(JSON.stringify({ accion, confirmation_id: confirmationId }));
+            card.querySelectorAll("button").forEach((b) => (b.disabled = true));
+        }
+
+        function renderPropuesta(msg) {
+            const card = document.createElement("div");
+            card.style.cssText = "margin:10px 0;padding:10px;border:1px solid var(--border);border-radius:12px;";
+            const titulo = msg.irreversible ? "⚠️ Acción irreversible" : "Acción propuesta";
+            card.innerHTML = `<div><strong>${titulo}:</strong> ${msg.descripcion}</div>`;
+            const btnOk = document.createElement("button");
+            btnOk.textContent = "Confirmar";
+            btnOk.style.marginRight = "8px";
+            btnOk.onclick = () => decide(msg.confirmation_id, "confirmar", card);
+            const btnNo = document.createElement("button");
+            btnNo.textContent = "Rechazar";
+            btnNo.style.background = "#9f1239";
+            btnNo.onclick = () => decide(msg.confirmation_id, "rechazar", card);
+            const acciones = document.createElement("div");
+            acciones.style.marginTop = "8px";
+            acciones.append(btnOk, btnNo);
+            card.append(acciones);
+            feedItems.prepend(card);
+        }
+
+        function logNotificacion(msg) {
+            const linea = document.createElement("div");
+            linea.style.cssText = "margin:6px 0;color:var(--muted);";
+            const txt = {
+                confirmado: `✔ Registrado: ${msg.descripcion || ""}`,
+                no_permitida: `🚫 No permitida: ${msg.mensaje || ""}`,
+                aclaracion: `❓ Aclara: ${msg.mensaje || ""}`,
+                descartado: "🗑 Descartado",
+                error_bd: `✖ Error de BD: ${msg.mensaje || ""}`,
+                expirada: "⏱ Confirmación expirada",
+                error: `✖ Error: ${msg.mensaje || ""}`,
+            }[msg.tipo] || JSON.stringify(msg);
+            linea.textContent = txt;
+            feedItems.prepend(linea);
+        }
+
+        // --- Grabación de audio -> transcripción -> encolado del comando ---
+        let mediaRecorder = null;
+        let chunks = [];
+
+        recordBtn.addEventListener("click", async () => {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                return;
+            }
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            chunks = [];
+            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach((t) => t.stop());
+                recordBtn.textContent = "Enviar comando";
+                recordBtn.disabled = true;
+                stateEl.textContent = "Transcribiendo…";
+                try {
+                    const blob = new Blob(chunks, { type: "audio/webm" });
+                    const fd = new FormData();
+                    fd.append("file", blob, "command.webm");
+                    const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
+                    const { text } = await tr.json();
+                    textEl.textContent = text;
+                    resultEl.hidden = false;
+                    await fetch("/api/comando", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ texto: text, id_partido: ID_PARTIDO }),
+                    });
+                    stateEl.textContent = "Comando enviado. Esperando propuesta…";
+                } catch (err) {
+                    stateEl.textContent = "Error: " + err.message;
+                } finally {
+                    recordBtn.disabled = false;
+                }
+            };
+            mediaRecorder.start();
+            recordBtn.textContent = "Parar";
+            stateEl.textContent = "Grabando…";
+        });
+    </script>
+</body>
+</html>
