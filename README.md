@@ -3,7 +3,7 @@
 ![Interfaz del árbitro](<images/Captura de pantalla 2026-06-16 104548.png>)
 ![Visor de partido](<images/Captura de pantalla 2026-06-16 104630.png>)
 
-Asistente de árbitro de fútbol con voz. Graba audio desde el navegador, lo transcribe con Whisper (vía OpenRouter), y un agente LLM traduce el comando a acciones de partido (goles, faltas, cambios…) con confirmación humana antes de escribir en la BD.
+Asistente de árbitro de fútbol con voz. Graba audio desde el navegador, lo transcribe con Whisper (vía OpenRouter), y un agente LLM traduce el comando a acciones de partido (goles, faltas, cambios…) con confirmación humana antes de escribir en la BD. Ejercicio parte del curso de Construcción de Agentes Autónomos con IA.
 
 ---
 
